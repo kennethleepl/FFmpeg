@@ -744,6 +744,9 @@ static int get_cookies(HTTPContext *s, char **cookies, const char *path,
         if (!cdomain)
             cdomain = av_strdup(domain);
 
+        if (!cpath)
+            cpath = av_strdup(path);
+
         // ensure all of the necessary values are valid
         if (!cdomain || !cpath || !cvalue) {
             av_log(s, AV_LOG_WARNING,
