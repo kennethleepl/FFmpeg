@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2015 Zhou Xiaoyong <zhouxiaoyong@loongson.cn>
+ *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -16,18 +18,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVCODEC_VDA_INTERNAL_H
-#define AVCODEC_VDA_INTERNAL_H
+#ifndef AVCODEC_MIPS_XVIDIDCT_MIPS_H
+#define AVCODEC_MIPS_XVIDIDCT_MIPS_H
 
-#include "vda.h"
+#include "libavcodec/xvididct.h"
 
-void ff_vda_output_callback(void *vda_hw_ctx,
-                            CFDictionaryRef user_info,
-                            OSStatus status,
-                            uint32_t infoFlags,
-                            CVImageBufferRef image_buffer);
+void ff_xvid_idct_mmi(int16_t *block);
+void ff_xvid_idct_put_mmi(uint8_t *dest, int32_t line_size, int16_t *block);
+void ff_xvid_idct_add_mmi(uint8_t *dest, int32_t line_size, int16_t *block);
 
-int ff_vda_default_init(AVCodecContext *avctx);
-void ff_vda_default_free(AVCodecContext *avctx);
-
-#endif /* AVCODEC_VDA_INTERNAL_H */
+#endif /* AVCODEC_MIPS_XVIDIDCT_MIPS_H */

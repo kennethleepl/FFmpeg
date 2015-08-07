@@ -349,8 +349,8 @@ static void sao_filter_CTB(HEVCContext *s, int x, int y)
             int sh = s->ps.sps->pixel_shift;
             int left_pixels, right_pixels;
 
-            stride_dst = 2*MAX_PB_SIZE + FF_INPUT_BUFFER_PADDING_SIZE;
-            dst = lc->edge_emu_buffer + stride_dst + FF_INPUT_BUFFER_PADDING_SIZE;
+            stride_dst = 2*MAX_PB_SIZE + AV_INPUT_BUFFER_PADDING_SIZE;
+            dst = lc->edge_emu_buffer + stride_dst + AV_INPUT_BUFFER_PADDING_SIZE;
 
             if (!top_edge) {
                 int left = 1 - left_edge;
@@ -843,7 +843,8 @@ void ff_hevc_deblocking_boundary_strengths(HEVCContext *s, int x0, int y0,
 void ff_hevc_hls_filter(HEVCContext *s, int x, int y, int ctb_size)
 {
     int x_end = x >= s->ps.sps->width  - ctb_size;
-    deblocking_filter_CTB(s, x, y);
+    if (s->avctx->skip_loop_filter < AVDISCARD_ALL)
+        deblocking_filter_CTB(s, x, y);
     if (s->ps.sps->sao_enabled) {
         int y_end = y >= s->ps.sps->height - ctb_size;
         if (y && x)

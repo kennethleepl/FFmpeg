@@ -733,6 +733,8 @@ static int decode_frame_header(AVCodecContext *ctx,
     s->uvac_qdelta = get_bits1(&s->gb) ? get_sbits_inv(&s->gb, 4) : 0;
     s->lossless    = s->yac_qi == 0 && s->ydc_qdelta == 0 &&
                      s->uvdc_qdelta == 0 && s->uvac_qdelta == 0;
+    if (s->lossless)
+        ctx->properties |= FF_CODEC_PROPERTY_LOSSLESS;
 
     /* segmentation header info */
     s->segmentation.ignore_refmap = 0;
@@ -4356,7 +4358,7 @@ AVCodec ff_vp9_decoder = {
     .init                  = vp9_decode_init,
     .close                 = vp9_decode_free,
     .decode                = vp9_decode_frame,
-    .capabilities          = CODEC_CAP_DR1 | CODEC_CAP_FRAME_THREADS,
+    .capabilities          = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
     .flush                 = vp9_decode_flush,
     .init_thread_copy      = ONLY_IF_THREADS_ENABLED(vp9_decode_init_thread_copy),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(vp9_decode_update_thread_context),

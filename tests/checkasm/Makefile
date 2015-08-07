@@ -1,4 +1,5 @@
 # libavcodec tests
+AVCODECOBJS-$(CONFIG_BSWAPDSP) += bswapdsp.o
 AVCODECOBJS-$(CONFIG_H264PRED) += h264pred.o
 AVCODECOBJS-$(CONFIG_H264QPEL) += h264qpel.o
 
@@ -17,12 +18,12 @@ $(CHECKASMOBJS): | $(CHECKASMDIRS)
 OBJDIRS += $(CHECKASMDIRS)
 
 # We rely on function pointers intentionally declared without specified argument types.
-tests/checkasm/%.o: CFLAGS := $(CFLAGS:-Wstrict-prototypes=-Wno-strict-prototypes)
+tests/checkasm/%.o: CFLAGS := $(CFLAGS:-Wstrict-prototypes=-Wno-strict-prototypes) -Umain
 
 CHECKASM := tests/checkasm/checkasm$(EXESUF)
 
-$(CHECKASM): $(EXEOBJS) $(CHECKASMOBJS) $(FF_DEP_LIBS)
-	$(LD) $(LDFLAGS) $(LDEXEFLAGS) $(LD_O) $(CHECKASMOBJS) $(FF_EXTRALIBS)
+$(CHECKASM): $(EXEOBJS) $(CHECKASMOBJS) $(FF_STATIC_DEP_LIBS)
+	$(LD) $(LDFLAGS) $(LDEXEFLAGS) $(LD_O) $(CHECKASMOBJS) $(FF_STATIC_DEP_LIBS) $(EXTRALIBS)
 
 checkasm: $(CHECKASM)
 

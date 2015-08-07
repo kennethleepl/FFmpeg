@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011 Roger Pau Monné <roger.pau@entel.upc.edu>
+ * Copyright (c) 2011 Roger Pau MonnÃ© <roger.pau@entel.upc.edu>
  * Copyright (c) 2011 Stefano Sabatini
  * Copyright (c) 2013 Paul B Mahol
  *
@@ -174,6 +174,7 @@ static AVFrame *do_psnr(AVFilterContext *ctx, AVFrame *main,
             c = s->is_rgb ? s->rgba_map[j] : j;
             fprintf(s->stats_file, "mse_%c:%0.2f ", s->comps[j], comp_mse[c]);
         }
+        fprintf(s->stats_file, "psnr_avg:%0.2f ", get_psnr(mse, 1, s->average_max));
         for (j = 0; j < s->nb_components; j++) {
             c = s->is_rgb ? s->rgba_map[j] : j;
             fprintf(s->stats_file, "psnr_%c:%0.2f ", s->comps[j],

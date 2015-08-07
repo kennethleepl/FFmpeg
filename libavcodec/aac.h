@@ -30,58 +30,8 @@
 #ifndef AVCODEC_AAC_H
 #define AVCODEC_AAC_H
 
-#ifndef USE_FIXED
-#define USE_FIXED 0
-#endif
 
-#if USE_FIXED
-
-#include "libavutil/softfloat.h"
-
-#define FFT_FLOAT    0
-#define FFT_FIXED_32 1
-
-#define AAC_RENAME(x)       x ## _fixed
-#define AAC_RENAME_32(x)    x ## _fixed_32
-#define AAC_FLOAT SoftFloat
-#define INTFLOAT int
-#define SHORTFLOAT int16_t
-#define AAC_SIGNE           int
-#define FIXR(a)             ((int)((a) * 1 + 0.5))
-#define FIXR10(a)           ((int)((a) * 1024.0 + 0.5))
-#define Q23(a)              (int)((a) * 8388608.0 + 0.5)
-#define Q30(x)              (int)((x)*1073741824.0 + 0.5)
-#define Q31(x)              (int)((x)*2147483648.0 + 0.5)
-#define RANGE15(x)          x
-#define GET_GAIN(x, y)      (-(y) << (x)) + 1024
-#define AAC_MUL26(x, y)     (int)(((int64_t)(x) * (y) + 0x2000000) >> 26)
-#define AAC_MUL30(x, y)     (int)(((int64_t)(x) * (y) + 0x20000000) >> 30)
-#define AAC_MUL31(x, y)     (int)(((int64_t)(x) * (y) + 0x40000000) >> 31)
-
-#else
-
-#define FFT_FLOAT    1
-#define FFT_FIXED_32 0
-
-#define AAC_RENAME(x)       x
-#define AAC_RENAME_32(x)    x
-#define AAC_FLOAT float
-#define INTFLOAT float
-#define SHORTFLOAT float
-#define AAC_SIGNE           unsigned
-#define FIXR(x)             ((float)(x))
-#define FIXR10(x)           ((float)(x))
-#define Q23(x)              x
-#define Q30(x)              x
-#define Q31(x)              x
-#define RANGE15(x)          (32768.0 * (x))
-#define GET_GAIN(x, y)      powf((x), -(y))
-#define AAC_MUL26(x, y)     ((x) * (y))
-#define AAC_MUL30(x, y)     ((x) * (y))
-#define AAC_MUL31(x, y)     ((x) * (y))
-
-#endif /* USE_FIXED */
-
+#include "aac_defines.h"
 #include "libavutil/float_dsp.h"
 #include "libavutil/fixed_dsp.h"
 #include "avcodec.h"
@@ -99,6 +49,8 @@
 
 #define TNS_MAX_ORDER 20
 #define MAX_LTP_LONG_SFB 40
+
+#define CLIP_AVOIDANCE_FACTOR 0.95f
 
 enum RawDataBlockType {
     TYPE_SCE,
@@ -230,6 +182,8 @@ typedef struct IndividualChannelStream {
     int predictor_initialized;
     int predictor_reset_group;
     uint8_t prediction_used[41];
+    uint8_t window_clipping[8]; ///< set if a certain window is near clipping
+    float clip_avoidance_factor; ///< set if any window is near clipping to the necessary atennuation factor to avoid it
 } IndividualChannelStream;
 
 /**

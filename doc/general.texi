@@ -226,6 +226,8 @@ library:
 @item 4xm                       @tab   @tab X
     @tab 4X Technologies format, used in some games.
 @item 8088flex TMV              @tab   @tab X
+@item AAX                       @tab   @tab X
+    @tab Audible Enhanced Audio format, used in audiobooks.
 @item ACT Voice                 @tab   @tab X
     @tab contains G.729 audio
 @item Adobe Filmstrip           @tab X @tab X
@@ -861,7 +863,7 @@ following image formats are supported:
 @item Name @tab Encoding @tab Decoding @tab Comments
 @item 8SVX exponential       @tab     @tab  X
 @item 8SVX fibonacci         @tab     @tab  X
-@item AAC+                   @tab  E  @tab  X
+@item AAC+                   @tab  E  @tab  IX
     @tab encoding supported through external library libaacplus
 @item AAC                    @tab  E  @tab  X
     @tab encoding supported through external library libfaac and libvo-aacenc

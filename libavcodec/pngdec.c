@@ -643,6 +643,11 @@ static int decode_idat_chunk(AVCodecContext *avctx, PNGDecContext *s,
 
         if ((ret = ff_thread_get_buffer(avctx, &s->picture, AV_GET_BUFFER_FLAG_REF)) < 0)
             return ret;
+        if (avctx->codec_id == AV_CODEC_ID_APNG && s->last_dispose_op != APNG_DISPOSE_OP_PREVIOUS) {
+            ff_thread_release_buffer(avctx, &s->previous_picture);
+            if ((ret = ff_thread_get_buffer(avctx, &s->previous_picture, AV_GET_BUFFER_FLAG_REF)) < 0)
+                return ret;
+        }
         ff_thread_finish_setup(avctx);
 
         p->pict_type        = AV_PICTURE_TYPE_I;
@@ -851,13 +856,13 @@ static int decode_fctl_chunk(AVCodecContext *avctx, PNGDecContext *s,
         cur_w > s->width - x_offset|| cur_h > s->height - y_offset)
             return AVERROR_INVALIDDATA;
 
-    if (sequence_number == 0 && s->dispose_op == APNG_DISPOSE_OP_PREVIOUS) {
+    if (sequence_number == 0 && dispose_op == APNG_DISPOSE_OP_PREVIOUS) {
         // No previous frame to revert to for the first frame
         // Spec says to just treat it as a APNG_DISPOSE_OP_BACKGROUND
-        s->dispose_op = APNG_DISPOSE_OP_BACKGROUND;
+        dispose_op = APNG_DISPOSE_OP_BACKGROUND;
     }
 
-    if (s->dispose_op == APNG_BLEND_OP_OVER && !s->has_trns && (
+    if (blend_op == APNG_BLEND_OP_OVER && !s->has_trns && (
             avctx->pix_fmt == AV_PIX_FMT_RGB24 ||
             avctx->pix_fmt == AV_PIX_FMT_RGB48BE ||
             avctx->pix_fmt == AV_PIX_FMT_PAL8 ||
@@ -865,8 +870,8 @@ static int decode_fctl_chunk(AVCodecContext *avctx, PNGDecContext *s,
             avctx->pix_fmt == AV_PIX_FMT_GRAY16BE ||
             avctx->pix_fmt == AV_PIX_FMT_MONOBLACK
         )) {
-        // APNG_DISPOSE_OP_OVER is the same as APNG_DISPOSE_OP_SOURCE when there is no alpha channel
-        s->dispose_op = APNG_BLEND_OP_SOURCE;
+        // APNG_BLEND_OP_OVER is the same as APNG_BLEND_OP_SOURCE when there is no alpha channel
+        blend_op = APNG_BLEND_OP_SOURCE;
     }
 
     s->cur_w      = cur_w;
@@ -917,20 +922,20 @@ static int handle_p_frame_apng(AVCodecContext *avctx, PNGDecContext *s,
         return AVERROR_PATCHWELCOME;
     }
 
-    // Copy the previous frame to the buffer
-    ff_thread_await_progress(&s->last_picture, INT_MAX, 0);
-    memcpy(buffer, s->last_picture.f->data[0], s->image_linesize * s->height);
-
     // Do the disposal operation specified by the last frame on the frame
-    if (s->last_dispose_op == APNG_DISPOSE_OP_BACKGROUND) {
-        for (y = s->last_y_offset; y < s->last_y_offset + s->last_h; ++y)
-            memset(buffer + s->image_linesize * y + s->bpp * s->last_x_offset, 0, s->bpp * s->last_w);
-    } else if (s->last_dispose_op == APNG_DISPOSE_OP_PREVIOUS) {
+    if (s->last_dispose_op != APNG_DISPOSE_OP_PREVIOUS) {
+        ff_thread_await_progress(&s->last_picture, INT_MAX, 0);
+        memcpy(buffer, s->last_picture.f->data[0], s->image_linesize * s->height);
+
+        if (s->last_dispose_op == APNG_DISPOSE_OP_BACKGROUND)
+            for (y = s->last_y_offset; y < s->last_y_offset + s->last_h; ++y)
+                memset(buffer + s->image_linesize * y + s->bpp * s->last_x_offset, 0, s->bpp * s->last_w);
+
+        memcpy(s->previous_picture.f->data[0], buffer, s->image_linesize * s->height);
+        ff_thread_report_progress(&s->previous_picture, INT_MAX, 0);
+    } else {
         ff_thread_await_progress(&s->previous_picture, INT_MAX, 0);
-        for (y = s->last_y_offset; y < s->last_y_offset + s->last_h; ++y) {
-            size_t row_start = s->image_linesize * y + s->bpp * s->last_x_offset;
-            memcpy(buffer + row_start, s->previous_picture.f->data[0] + row_start, s->bpp * s->last_w);
-        }
+        memcpy(buffer, s->previous_picture.f->data[0], s->image_linesize * s->height);
     }
 
     // Perform blending
@@ -1166,7 +1171,7 @@ static int decode_frame_png(AVCodecContext *avctx,
     sig = bytestream2_get_be64(&s->gb);
     if (sig != PNGSIG &&
         sig != MNGSIG) {
-        av_log(avctx, AV_LOG_ERROR, "Invalid PNG signature (%d).\n", buf_size);
+        av_log(avctx, AV_LOG_ERROR, "Invalid PNG signature 0x%08"PRIX64".\n", sig);
         return AVERROR_INVALIDDATA;
     }
 
@@ -1206,13 +1211,9 @@ static int decode_frame_apng(AVCodecContext *avctx,
     PNGDecContext *const s = avctx->priv_data;
     int ret;
     AVFrame *p;
-    ThreadFrame tmp;
 
-    ff_thread_release_buffer(avctx, &s->previous_picture);
-    tmp = s->previous_picture;
-    s->previous_picture = s->last_picture;
-    s->last_picture = s->picture;
-    s->picture = tmp;
+    ff_thread_release_buffer(avctx, &s->last_picture);
+    FFSWAP(ThreadFrame, s->picture, s->last_picture);
     p = s->picture.f;
 
     if (!(s->state & PNG_IHDR)) {
@@ -1283,6 +1284,7 @@ static int update_thread_context(AVCodecContext *dst, const AVCodecContext *src)
         pdst->cur_h = psrc->cur_h;
         pdst->x_offset = psrc->x_offset;
         pdst->y_offset = psrc->y_offset;
+        pdst->has_trns = psrc->has_trns;
 
         pdst->dispose_op = psrc->dispose_op;
 
@@ -1291,8 +1293,14 @@ static int update_thread_context(AVCodecContext *dst, const AVCodecContext *src)
         pdst->state |= psrc->state & (PNG_IHDR | PNG_PLTE);
 
         ff_thread_release_buffer(dst, &pdst->last_picture);
-        if (psrc->last_picture.f->data[0])
-            return ff_thread_ref_frame(&pdst->last_picture, &psrc->last_picture);
+        if (psrc->last_picture.f->data[0] &&
+            (ret = ff_thread_ref_frame(&pdst->last_picture, &psrc->last_picture)) < 0)
+            return ret;
+
+        ff_thread_release_buffer(dst, &pdst->previous_picture);
+        if (psrc->previous_picture.f->data[0] &&
+            (ret = ff_thread_ref_frame(&pdst->previous_picture, &psrc->previous_picture)) < 0)
+            return ret;
     }
 
     return 0;
@@ -1355,7 +1363,7 @@ AVCodec ff_apng_decoder = {
     .decode         = decode_frame_apng,
     .init_thread_copy = ONLY_IF_THREADS_ENABLED(png_dec_init),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(update_thread_context),
-    .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_FRAME_THREADS /*| CODEC_CAP_DRAW_HORIZ_BAND*/,
+    .capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS /*| AV_CODEC_CAP_DRAW_HORIZ_BAND*/,
 };
 #endif
 
@@ -1371,6 +1379,6 @@ AVCodec ff_png_decoder = {
     .decode         = decode_frame_png,
     .init_thread_copy = ONLY_IF_THREADS_ENABLED(png_dec_init),
     .update_thread_context = ONLY_IF_THREADS_ENABLED(update_thread_context),
-    .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_FRAME_THREADS /*| CODEC_CAP_DRAW_HORIZ_BAND*/,
+    .capabilities   = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS /*| AV_CODEC_CAP_DRAW_HORIZ_BAND*/,
 };
 #endif
